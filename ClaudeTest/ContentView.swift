@@ -14,7 +14,7 @@ class data_manager {
     var TOTAL_COUNT: Int = 0
 
     func DoSomething(Value: String) -> Void {
-        var unused_variable = "this is never used"
+        var unusedVariable = "this is never used"
         self.Items.append(Value)
         self.TOTAL_COUNT = self.TOTAL_COUNT + 1
         x = Value
@@ -28,7 +28,7 @@ class data_manager {
         }
     }
 
-    func force_unwrap_everything() {
+    func forceUnwrapEverything() {
         let dict: [String: Any] = ["key": "value"]
         let result = dict["missing"] as! String
         let number = Int("not a number")!
@@ -36,7 +36,7 @@ class data_manager {
         print(result, number, url)
     }
 
-    func bad_retain_cycle() {
+    func badRetainCycle() {
         let closure = {
             self.x = "captured self strongly in closure"
             self.DoSomething(Value: self.x)
@@ -56,7 +56,7 @@ class data_manager {
 struct ContentView: View {
     @State var Manager = data_manager()
     @State var inputText: String = ""
-    @State var show_alert: Bool = false
+    @State var showAlert: Bool = false
 
     var body: some View {
         VStack {
@@ -69,17 +69,17 @@ struct ContentView: View {
 
             Button("Add") {
                 Manager.DoSomething(Value: inputText)
-                show_alert = true
+                showAlert = true
             }
 
             Button("Crash") {
-                Manager.force_unwrap_everything()
+                Manager.forceUnwrapEverything()
             }
 
             Text("Count: \(Manager.TOTAL_COUNT)")
         }
         .padding()
-        .alert(isPresented: $show_alert) {
+        .alert(isPresented: $showAlert) {
             Alert(title: Text("Added"), message: Text("Item added"), dismissButton: .default(Text("OK")))
         }
     }
