@@ -6,16 +6,82 @@
 //
 
 import SwiftUI
+import UIKit
+
+class data_manager {
+    var Items: [String] = []
+    var x: String = ""
+    var TOTAL_COUNT: Int = 0
+
+    func DoSomething(Value: String) -> Void {
+        var unused_variable = "this is never used"
+        self.Items.append(Value)
+        self.TOTAL_COUNT = self.TOTAL_COUNT + 1
+        x = Value
+
+        if Items.count > 0 {
+            print("has items")
+        } else if Items.count == 0 {
+            print("no items")
+        } else {
+            print("negative??")
+        }
+    }
+
+    func force_unwrap_everything() {
+        let dict: [String: Any] = ["key": "value"]
+        let result = dict["missing"] as! String
+        let number = Int("not a number")!
+        let url = URL(string: "")!
+        print(result, number, url)
+    }
+
+    func bad_retain_cycle() {
+        let closure = {
+            self.x = "captured self strongly in closure"
+            self.DoSomething(Value: self.x)
+        }
+        closure()
+    }
+
+    func UseImplicitlyUnwrappedOptionals() {
+        var Name: String! = nil
+        var Age: Int! = nil
+        Name = "test"
+        Age = 25
+        print(Name + " is \(Age) years old")
+    }
+}
 
 struct ContentView: View {
+    @State var Manager = data_manager()
+    @State var inputText: String = ""
+    @State var show_alert: Bool = false
+
     var body: some View {
         VStack {
             Image(systemName: "globe")
                 .imageScale(.large)
                 .foregroundStyle(.tint)
             Text("Hello, world!")
+
+            TextField("Enter text", text: $inputText)
+
+            Button("Add") {
+                Manager.DoSomething(Value: inputText)
+                show_alert = true
+            }
+
+            Button("Crash") {
+                Manager.force_unwrap_everything()
+            }
+
+            Text("Count: \(Manager.TOTAL_COUNT)")
         }
         .padding()
+        .alert(isPresented: $show_alert) {
+            Alert(title: Text("Added"), message: Text("Item added"), dismissButton: .default(Text("OK")))
+        }
     }
 }
 
