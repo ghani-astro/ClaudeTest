@@ -18,13 +18,35 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
+      - name: Resolve mentioner OAuth token
+        id: auth
+        run: |
+          case "${{ github.event_name }}" in
+            issue_comment|pull_request_review_comment) LOGIN="${{ github.event.comment.user.login }}" ;;
+            pull_request_review) LOGIN="${{ github.event.review.user.login }}" ;;
+            issues) LOGIN="${{ github.event.issue.user.login }}" ;;
+          esac
+          SECRET_NAME="CLAUDE_CODE_OAUTH_TOKEN_$(echo "$LOGIN" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+          echo "secret_name=${SECRET_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Resolved token secret: ${SECRET_NAME} (from GitHub user: ${LOGIN})"
+
+      - name: Validate OAuth token exists
+        env:
+          OAUTH_TOKEN: ${{ secrets[steps.auth.outputs.secret_name] }}
+        run: |
+          if [ -z "$OAUTH_TOKEN" ]; then
+            echo "::error::Secret ${{ steps.auth.outputs.secret_name }} not found. Please add the OAuth token for this team member. Run 'claude setup-token' to generate one."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -34,12 +56,27 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
+          claude_code_oauth_token: ${{ secrets[steps.auth.outputs.secret_name] }}
+          claude_args: '--max-turns 50 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"'
+          track_progress: true
           additional_permissions: |
             actions: read
 
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"'
-          track_progress: true
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMENT_BODY="⚠️ **Claude Code failed to run.** Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
 
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=confused
+            gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments -f body="$COMMENT_BODY"
+          elif [ "${{ github.event_name }}" = "pull_request_review_comment" ]; then
+            gh api repos/${{ github.repository }}/pulls/comments/${{ github.event.comment.id }}/reactions -f content=confused
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments -f body="$COMMENT_BODY"
+          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+            gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments -f body="$COMMENT_BODY"
+          elif [ "${{ github.event_name }}" = "issues" ]; then
+            gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments -f body="$COMMENT_BODY"
+          fi
