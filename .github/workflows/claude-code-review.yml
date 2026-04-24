@@ -46,7 +46,7 @@ jobs:
         if: steps.pr-size.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Resolve author OAuth token
         if: steps.pr-size.outputs.skip != 'true'
